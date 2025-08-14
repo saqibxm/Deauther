@@ -4,7 +4,9 @@
 #include "debug.h"
 #include "Scanner.h"
 
-Scanner scanner;
+Scanner &scanner = Scanner::instance();
+WiFiManager& manager = WiFiManager::instance();
+
 int16_t scanStatus = 0;
 
 void setup() {
@@ -16,11 +18,17 @@ void setup() {
     Serial.println();
     ScanSettings sts;
     sts.mode = ScanMode::DEEP;
+    sts.target = ScanTarget::BOTH;
+    sts.hopInterval = 5000;
+    sts.channels = C_ASIA; // exclude channel 14
+    sts.timeout = 60 * 1000;
+
     scanner.StartScan(sts);
     Serial.println(F("Scan Started!"));
 }
 
 void loop() {
+  manager.Update();
   if(scanner.SearchRunning())
       scanner.Update();
   else if(scanner.Available())
@@ -32,10 +40,26 @@ void loop() {
       int entry = 1;
       for(const auto &curr : list) {
         Serial.printf("Entry %d of %d\n", entry++, list.size());
-        Serial.println(curr.GetSSID());
+        Serial.println("Network SSID" + curr.GetSSID());
+        Serial.print("Network's RSSI: ");
         Serial.println(curr.rssi);
+        Serial.println("Network's Mac: " + str::mac(curr.bssid));
         Serial.println();
       }
+
+      entry = 0;
+      Serial.println("Stations found are:");
+      for(const auto &sta : scanner.FoundStations()) {
+        Serial.printf("Station %d of %d\n", entry++, list.size());
+        Serial.println("Mac address: " + str::mac(sta.mac));
+        Serial.print("Station's RSSI: ");
+        Serial.println(sta.rssi);
+        Serial.print("Station's Channel: ");
+        Serial.println(sta.channel);
+        Serial.println("Associated to: " + str::mac(sta.ap));
+        Serial.println();
+      }
+
       Serial.printf("Free Heap Space %d\n", ESP.getFreeHeap());
       Serial.println(F("Going into Deep Sleep, Reset!"));
       ESP.deepSleep(0);

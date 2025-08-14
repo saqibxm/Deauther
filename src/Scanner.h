@@ -66,7 +66,7 @@ public:
     // using SearchProgressCallback = void(*)(???);
 
 public:
-    Scanner() = default; // only allow Singleton to instantiate
+    Scanner(); // = default; // only allow Singleton to instantiate
     void StartScan(const ScanSettings &settings);
 
     void ScanAPs();

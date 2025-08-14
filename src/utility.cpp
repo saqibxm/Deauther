@@ -15,6 +15,7 @@ extern "C" {
 #include "config.h"
 
 #include "utility.h"
+#include "debug.h"
 
 namespace str {
     bool hidden { false };
@@ -157,12 +158,6 @@ namespace str {
         }
     }
 }
-
-#define debug(...) 0
-#define debugln(...) 0
-#define debugf(...) 0
-#define debugF(...) 0
-#define debuglnF(...) 0
 
 namespace sys {
     void channel(byte ch) {

@@ -74,8 +74,8 @@ public:
     void StopPromiscuous();
 
     // void SwitchChannelHop(bool enable) { if(hopInterval == 0) enable = false; hopingChannels = enable; }
-    // void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT, ChannelMask cycle = C_ALL) noexcept { if(interval < CHANNEL_HOP_INTERVAL_MIN) return; hopInterval = interval; }
-    void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT) noexcept { if(interval < CHANNEL_HOP_INTERVAL_MIN) return; hopInterval = interval; }
+    //void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT) noexcept { if(interval < CHANNEL_HOP_INTERVAL_MIN) return; hopInterval = interval; }
+    void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT, ChannelMask cycle = C_ALL) noexcept;
     void HandleChannelHop(unsigned long currentMs = millis()) noexcept;
 
     bool SendArbitraryPacket(const byte *buffer, std::uint16_t length);
@@ -88,7 +88,7 @@ public:
 
     void ChangeChannel(byte ch) { sys::channel(ch); yield(); }
     byte CurrentChannel() const { return wifi_get_channel(); }
-    void CycleNextChannel(Channels channels = Channels::C_ALL) { sys::channel_hop_next(channels); }
+    void CycleNextChannel() { sys::channel_hop_next(channels); }
 
     ESP8266WiFiClass& LLManager();
 
@@ -109,7 +109,7 @@ private:
     std::uint16_t hopInterval;
     std::uint16_t lastHopMs;
     byte channel;
-    // ChannelMask channels;
+    ChannelMask channels; // channel cycle list
 
     struct PacketOptionFields {
         // to control rate at which packets are sent

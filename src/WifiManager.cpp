@@ -13,7 +13,7 @@ void enforce_packet_send_delay(uint8_t status)
 WiFiManager::WiFiManager()
 : mode(WManMode::WM_IDLE) // , working(false)
 , promiscuousModeActive(false), paused(false), callback(nullptr)
-, hopInterval(CHANNEL_HOP_INTERVAL_DEFAULT), lastHopMs(0)
+, hopInterval(0), lastHopMs(0)
 , channel(DEFAULT_NETWORK_CHANNEL)
 , packetOptions({true, 0, 0})
 // , packetSendDelay(0), canSendPacket(true)
@@ -189,7 +189,7 @@ void WiFiManager::Mode(WManMode m)
 
 void WiFiManager::HandleChannelHop(unsigned long currentMs)
 {
-    if(promiscuousModeActive)
+    if(promiscuousModeActive && hopInterval != 0)
     {
         if((currentMs - lastHopMs) >= hopInterval)
         {
@@ -197,6 +197,20 @@ void WiFiManager::HandleChannelHop(unsigned long currentMs)
             CycleNextChannel();
         }
     }
+}
+
+void WiFiManager::ChannelHopInterval(std::uint16_t interval, ChannelMask cycle)
+{
+    if(interval != 0 && interval < CHANNEL_HOP_INTERVAL_DEFAULT) interval = CHANNEL_HOP_INTERVAL_DEFAULT;
+    if(sys::count_channels(cycle) < 1)
+    {
+        // immediately change channel and disable hoping
+        ChangeChannel(channel = sys::next_channel(channels));
+        interval = 0;
+    } // disable hopping
+
+    channels = cycle;
+    hopInterval = interval;
 }
 
 bool WiFiManager::SendArbitraryPacket(const byte *buffer, std::uint16_t length)

@@ -4,6 +4,12 @@
 
 Scanner* Scanner::instance_ = nullptr;
 
+Scanner::Scanner()
+{
+    networks.reserve(10);
+    stations.reserve(10);
+}
+
 void Scanner::StartScan(const ScanSettings &s)
 {
     this->settings = s;
@@ -67,15 +73,18 @@ void Scanner::StartDeepScan()
 
     // wifi.Mode(WM_IDLE);
 
-    // auto channelCount = sys::count_channels(settings.channels);
-    // if(channelCount > 1);
+    auto channelCount = sys::count_channels(settings.channels);
+    if(channelCount < 1)
+        wifi.ChangeChannel(sys::next_channel(settings.channels));
+    else
+        wifi.ChannelHopInterval(settings.hopInterval, settings.channels);
 
     if(!wifi.StartPromiscuous(packet_callback))
     {
         scanRunning = false;
         debuglnF("[Scanner] Deep Scan Started");
     }
-    else debuglnF("[Scanner] Deep Scan Couldnt Start");
+    else debuglnF("[Scanner] Deep Scan Couldn't Start");
 }
 
 void Scanner::ScanSTs()
@@ -246,7 +255,7 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi)
     auto capability = *reinterpret_cast<const std::uint16_t*>(frame + 34);
     network.encryption = (capability & 0x10) ? 1 : 0; // WEP bit
     
-    if ((settings.target == ScanTarget::ACCESSPOINT || settings.target == ScanTarget::BOTH) && add_network_overwrite(network)) {
+    if (add_network_overwrite(network)) {
         if (networkFoundCb) {
             networkFoundCb(network);
         }
@@ -285,7 +294,7 @@ void Scanner::parse_data_frame(const uint8_t* frame, size_t length, int16_t rssi
     station.lastSeen = millis();
     station.packets++;
     
-    if ((settings.target == ScanTarget::STATION || settings.target == ScanTarget::BOTH) && add_station_overwrite(station)) {
+    if (add_station_overwrite(station)) {
         if (stationFoundCb) {
             stationFoundCb(station);
         }
