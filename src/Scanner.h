@@ -89,7 +89,6 @@ public:
     bool SearchRunning() const { return scanRunning; }
     byte ProgressPercentage() const {
         if(!scanRunning) return 0xFF;
-        debugfP("Scan timers\r\nStart:%d\r\nElapsed:%d\r\nTimeout:%d\r\n", startTime, elapsedTime, scanTimeout);
         return (((elapsedTime - startTime) * 100.0F) / scanTimeout);
     }
 

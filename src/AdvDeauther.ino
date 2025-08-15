@@ -50,18 +50,18 @@ void loop() {
   else if(scanner.Available())
     {
       auto &list = scanner.FoundNetworks();
-      Serial.printf("Scan Completed! Found %d Networks\n", list.size());
+      Serial.printf_P(PSTR("Scan Completed! Found %d Networks\n"), list.size());
       yield();
 
       int entry = 1;
-      for(const auto &curr : list) {
-        Serial.printf("Entry %d of %d\n", entry++, list.size());
-        Serial.println("Network SSID: " + curr.GetSSID());
+      for(const auto &net : list) {
+        Serial.printf("Entry %d of %d\n", entry++, scanner.FoundNetworks().size());
+        Serial.println("Network SSID: " + net.GetSSID());
         Serial.print("Network's RSSI: ");
-        Serial.println(curr.rssi);
-        Serial.println("Network's Mac: " + str::mac(curr.bssid));
+        Serial.println(net.rssi);
+        Serial.println("Network's Mac: " + str::mac(net.bssid));
         Serial.print("Network's Channel: ");
-        Serial.println(curr.channel);
+        Serial.println(net.channel);
         Serial.println();
       }
 

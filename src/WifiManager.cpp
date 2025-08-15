@@ -174,13 +174,13 @@ void WiFiManager::StopPromiscuous()
     delay(100);
 
     wifi_promiscuous_enable(false);
-    ChangeChannel(channel);
-
+    debuglnF("[WiFiManager] Promiscuous Mode Disabled");
     promiscuousModeActive = false;
 
+    ChangeChannel(channel);
+    delay(250); // let it rest a bit
     WiFi.mode(static_cast<WiFiMode_t>(mode)); // restore last mode
     // debuglnF("Promiscuous Disabled");
-    debuglnF("[WiFiManager] Promiscuous Mode Disabled");
 }
 
 void WiFiManager::Mode(WManMode m)

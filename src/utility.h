@@ -26,8 +26,7 @@ extern "C" {
 #endif // __cplusplus
 
     inline void channel(byte ch) {
-        debugF("[sys] Set channel ");
-        debugln(String(ch));
+        debugfP("[sys] Set channel: %d\r\n", ch);
 
         if (wifi_get_channel() == ch)
         {
@@ -40,7 +39,7 @@ extern "C" {
 
     inline bool send(byte ch, byte* buf, std::uint16_t len) {
         sys::channel(ch);
-        debuglnF("[sys] Send packet");
+        debugfP("[sys] Send packet, Length: %d\r\n", len);
         return wifi_send_pkt_freedom(buf, len, 0) == 0;
     }
 
@@ -70,7 +69,7 @@ extern "C" {
         if(next == current && channels != C_NONE)
             next = __builtin_ctz(static_cast<unsigned int>(channels));
 
-        debugF("[sys] Next Channel "); debugln(String(next));
+        debugfP("[sys] Next Channel: %d\r\n", next);
 
         return next;
 

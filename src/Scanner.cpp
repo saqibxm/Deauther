@@ -148,6 +148,7 @@ void Scanner::Update()
         {
             // delay(100);
             Stop();
+            return;
         }
         if(hopInterval != 0 && (elapsedTime - lastHopTime) >= hopInterval)
         {
