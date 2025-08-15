@@ -85,19 +85,18 @@ public:
     void CallOnNetworkFound(NetworkFoundCallback cb);
     void CallOnStationFound(NetworkFoundCallback cb);
 
-    bool Available() const; // if the results are avaialable and the search completed
+    bool Available() const { return !SearchRunning() && (networks.size() || stations.size()); } // if the results are avaialable and the search completed
     bool SearchRunning() const { return scanRunning; }
+    byte ProgressPercentage() const {
+        if(!scanRunning) return 0xFF;
+        debugfP("Scan timers\r\nStart:%d\r\nElapsed:%d\r\nTimeout:%d\r\n", startTime, elapsedTime, scanTimeout);
+        return (((elapsedTime - startTime) * 100.0F) / scanTimeout);
+    }
 
     NetworkListType& FoundNetworks() { return networks; }
     StationListType& FoundStations() { return stations; }
 
-    static Scanner& instance() { return *instance_ptr(); }
-    static Scanner* instance_ptr() { if(!instance_) instance_ = new Scanner; return instance_; }
-
 private:
-    static Scanner* instance_;
-
-    WiFiManager &wifi = WiFiManager::instance();
     bool scanRunning = false;
     NetworkListType networks;
     StationListType stations;
@@ -106,9 +105,13 @@ private:
     ScanSettings settings;
     std::uint16_t found = 0;
 
+    std::uint32_t scanTimeout = 0;
     std::uint32_t startTime = 0;
     std::uint32_t elapsedTime = 0;
-    std::uint32_t scanTimeout = 0;
+
+    ChannelMask channelList;
+    std::uint32_t hopInterval = 0;
+    std::uint32_t lastHopTime = 0;
 
     NetworkFoundCallback networkFoundCb = nullptr;
     StationFoundCallback stationFoundCb = nullptr;
@@ -123,6 +126,8 @@ private:
     bool add_network_overwrite(const NetworkInfo& network);
     bool add_station_overwrite(const StationInfo& station);
 };
+
+extern Scanner scanner;
 
 #endif // SCAN_HEADER
 

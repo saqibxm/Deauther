@@ -2,24 +2,29 @@
 
 #include "debug.h"
 
-WiFiManager* WiFiManager::instance_ = nullptr;
+// WiFiManager* WiFiManager::instance_ = nullptr;
+WiFiManager wifi;
 
 void enforce_packet_send_delay(uint8_t status)
 {
-    WiFiManager::instance().packetOptions.canSend = false;
-    WiFiManager::instance().packetOptions.lastSentMs = millis();
+    wifi.packetOptions.canSend = false;
+    wifi.packetOptions.lastSentMs = millis();
 }
 
 WiFiManager::WiFiManager()
 : mode(WManMode::WM_IDLE) // , working(false)
-, promiscuousModeActive(false), paused(false), callback(nullptr)
-, hopInterval(0), lastHopMs(0)
 , channel(DEFAULT_NETWORK_CHANNEL)
+, paused(false)
+, promiscuousModeActive(false), callback(nullptr)
 , packetOptions({true, 0, 0})
 // , packetSendDelay(0), canSendPacket(true)
 // , staConnectedCb(nullptr)
 {
     debuglnF("[WiFiManager] Initialized");
+    ChangeChannel(channel);
+    WiFi.begin();
+    delay(200);
+    Mode(WManMode::WM_IDLE);
 }
 
 WiFiManager::~WiFiManager()
@@ -107,13 +112,14 @@ void WiFiManager::DisposeST()
 void WiFiManager::Update()
 {
     yield();
-    auto currentMs = millis();
 
-    HandleChannelHop(currentMs);
+    /* // Not yet Enabled
+    auto currentMs = millis();
     if(packetOptions.sendDelay != 0 && ((currentMs - packetOptions.lastSentMs) >= packetOptions.sendDelay)) // enabled
     {
         packetOptions.canSend = true;
     }
+    */
 }
 
 void WiFiManager::Pause()
@@ -151,9 +157,9 @@ bool WiFiManager::StartPromiscuous(PromiscuousCallback cb)
     delay(250);
 
     wifi_set_opmode(STATION_MODE);
-    ChangeChannel(channel);
 
     wifi_promiscuous_enable(false);
+    ChangeChannel(channel);
     wifi_set_promiscuous_rx_cb(callback);
     wifi_promiscuous_enable(true);
 
@@ -187,6 +193,7 @@ void WiFiManager::Mode(WManMode m)
     debugln(modeStr);
 }
 
+/*
 void WiFiManager::HandleChannelHop(unsigned long currentMs)
 {
     if(promiscuousModeActive && hopInterval != 0)
@@ -205,13 +212,14 @@ void WiFiManager::ChannelHopInterval(std::uint16_t interval, ChannelMask cycle)
     if(sys::count_channels(cycle) < 1)
     {
         // immediately change channel and disable hoping
-        ChangeChannel(channel = sys::next_channel(channels));
+        ChangeChannel(channel = sys::starting_channel(channels));
         interval = 0;
     } // disable hopping
 
     channels = cycle;
     hopInterval = interval;
 }
+*/
 
 bool WiFiManager::SendArbitraryPacket(const byte *buffer, std::uint16_t length)
 {

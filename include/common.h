@@ -11,7 +11,8 @@ using ChannelMask = std::uint16_t;
 using MacUnit = byte;
 
 struct NetworkInfo {
-    char *ssid = nullptr;
+    // char *ssid = nullptr;
+    String ssid;
     byte bssid[6] = {};
     byte channel = 0;
     std::int16_t rssi = 0;
@@ -27,20 +28,17 @@ struct NetworkInfo {
     }
     */
    NetworkInfo() = default;
-   NetworkInfo(const char* name, const byte* bssid, byte ch, std::int16_t rssi, byte enc, bool hidden, std::uint8_t clients, unsigned long lastseen)
+   NetworkInfo(const String& name, const byte* bssid, byte ch, std::int16_t rssi, byte enc, bool hidden, std::uint8_t clients, unsigned long lastseen)
+   : ssid(name), channel(ch), rssi(rssi), hidden(hidden), clientCount(clients), lastSeen(lastseen)
    {
-        this->hidden = hidden;
-
-        SetSSID(name);
-
+        // SetSSID(name);
         if (bssid) memcpy(this->bssid, bssid, sizeof(this->bssid));
-        this->rssi = rssi;
-        this->encryption = enc;
-        this->channel = ch;
    }
 
    void SetSSID(const char *const name) noexcept
    {
+    ssid = String(name);
+    /*
         if (name)
         {
             size_t ssidlen = strlen(name);
@@ -53,10 +51,12 @@ struct NetworkInfo {
                 this->ssid[ssidlen] = '\0';
             }
         }
+    */
     }
 
     String GetSSID() const
     {
+        return ssid;
         String name;
         if (!ssid)
             name = F("<NOT SET>");

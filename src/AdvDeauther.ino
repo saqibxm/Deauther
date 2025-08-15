@@ -4,14 +4,18 @@
 #include "debug.h"
 #include "Scanner.h"
 
-Scanner &scanner = Scanner::instance();
-WiFiManager& manager = WiFiManager::instance();
-
 int16_t scanStatus = 0;
+
+unsigned long previousTime, currentTime;
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
+
+    #ifndef ENABLE_DEBUG
     Serial.begin(115200);
+    #endif
+    debug_init();
+
     WiFi.begin();
     delay(5000);
 
@@ -21,16 +25,28 @@ void setup() {
     sts.target = ScanTarget::BOTH;
     sts.hopInterval = 5000;
     sts.channels = C_ASIA; // exclude channel 14
-    sts.timeout = 60 * 1000;
+    sts.channels = C1 | C2 | C3 | C11;
+    sts.timeout = (sts.hopInterval * sys::count_channels(sts.channels)); // give each channel 5 seconds;
+
+    Serial.printf("Total Scan Channels : %d\n", sys::count_channels(sts.channels));
 
     scanner.StartScan(sts);
+    previousTime = millis();
     Serial.println(F("Scan Started!"));
 }
 
 void loop() {
-  manager.Update();
+  // wifi.Update();
   if(scanner.SearchRunning())
+  {
       scanner.Update();
+      currentTime = millis();
+      if(currentTime - previousTime > 1000)
+      {
+        Serial.println("Scanning: " + String(scanner.ProgressPercentage()) + '%');
+        previousTime = currentTime;
+      }
+  }
   else if(scanner.Available())
     {
       auto &list = scanner.FoundNetworks();
@@ -40,17 +56,19 @@ void loop() {
       int entry = 1;
       for(const auto &curr : list) {
         Serial.printf("Entry %d of %d\n", entry++, list.size());
-        Serial.println("Network SSID" + curr.GetSSID());
+        Serial.println("Network SSID: " + curr.GetSSID());
         Serial.print("Network's RSSI: ");
         Serial.println(curr.rssi);
         Serial.println("Network's Mac: " + str::mac(curr.bssid));
+        Serial.print("Network's Channel: ");
+        Serial.println(curr.channel);
         Serial.println();
       }
 
-      entry = 0;
+      entry = 1;
       Serial.println("Stations found are:");
       for(const auto &sta : scanner.FoundStations()) {
-        Serial.printf("Station %d of %d\n", entry++, list.size());
+        Serial.printf("Station %d of %d\n", entry++, scanner.FoundStations().size());
         Serial.println("Mac address: " + str::mac(sta.mac));
         Serial.print("Station's RSSI: ");
         Serial.println(sta.rssi);
@@ -64,9 +82,6 @@ void loop() {
       Serial.println(F("Going into Deep Sleep, Reset!"));
       ESP.deepSleep(0);
     }
-  else
-  {
-  }
 
     digitalWrite(LED_BUILTIN, HIGH);
     delay(500);

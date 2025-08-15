@@ -28,6 +28,7 @@
 #define debugf(...) DEBUG_PORT.printf(__VA_ARGS__)
 #define debugF(...) DEBUG_PORT.print(F(__VA_ARGS__))
 #define debuglnF(...) DEBUG_PORT.println(F(__VA_ARGS__))
+#define debugfP(fmt, ...) DEBUG_PORT.printf_P(PSTR(fmt) ,##__VA_ARGS__)
 
 #define debug_available() DEBUG_PORT.available()
 #define debug_read() DEBUG_PORT.read()
@@ -42,6 +43,7 @@
 #define debugf(...) 0
 #define debugF(...) 0
 #define debuglnF(...) 0
+#define debugfP(...) 0
 
 #define debug_available() 0
 #define debug_read() 0

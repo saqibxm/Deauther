@@ -2,12 +2,12 @@
 
 #include "debug.h"
 
-Scanner* Scanner::instance_ = nullptr;
+Scanner scanner; // global definition
 
 Scanner::Scanner()
 {
     networks.reserve(10);
-    stations.reserve(10);
+    stations.reserve(20);
 }
 
 void Scanner::StartScan(const ScanSettings &s)
@@ -15,12 +15,11 @@ void Scanner::StartScan(const ScanSettings &s)
     this->settings = s;
     if(settings.mode == ScanMode::NONE) return;
 
-    if(settings.timeout <= 0 || settings.timeout >= MAX_SCAN_TIMEOUT)
-        settings.timeout = DEFAULT_SCAN_TIMEOUT;
+    scanTimeout = (settings.timeout <= 0 /* || settings.timeout >= MAX_SCAN_TIMEOUT */ ) ? DEFAULT_SCAN_TIMEOUT : settings.timeout;
 
     scanRunning = true;
 
-    if(false && settings.clearList)
+    if(settings.clearList)
     {
         switch (settings.target)
         {
@@ -63,28 +62,30 @@ void Scanner::StartQuickScan()
     WiFi.scanNetworks(/* async */ true, /* scan hidden */ true); // initiate asynchronous scan
 
     debuglnF("[Scanner] Quick Scan Started");
+    startTime = millis();
 }
 
 void Scanner::StartDeepScan()
 {
     if(!scanRunning) return;
 
-    startTime = millis();
-
     // wifi.Mode(WM_IDLE);
-
-    auto channelCount = sys::count_channels(settings.channels);
-    if(channelCount < 1)
-        wifi.ChangeChannel(sys::next_channel(settings.channels));
+    
+    if(sys::count_channels(channelList = settings.channels) > 1)
+        hopInterval = settings.hopInterval < CHANNEL_HOP_INTERVAL_MIN ? CHANNEL_HOP_INTERVAL_DEFAULT : settings.hopInterval;
     else
-        wifi.ChannelHopInterval(settings.hopInterval, settings.channels);
+        wifi.ChangeChannel(sys::starting_channel(settings.channels));
+
+    // wifi.ChannelHopInterval(settings.hopInterval, settings.channels); // will automatically determine whether to enable hop or not
 
     if(!wifi.StartPromiscuous(packet_callback))
     {
         scanRunning = false;
-        debuglnF("[Scanner] Deep Scan Started");
+        debuglnF("[Scanner] Deep Scan Couldn't Start");
     }
-    else debuglnF("[Scanner] Deep Scan Couldn't Start");
+    else debuglnF("[Scanner] Deep Scan Started");
+
+    startTime = lastHopTime = millis();
 }
 
 void Scanner::ScanSTs()
@@ -99,6 +100,8 @@ void Scanner::Update()
 
     yield();
     ESP.wdtFeed();
+
+    elapsedTime = millis();
 
     if (settings.mode == ScanMode::QUICK)
     {
@@ -133,7 +136,7 @@ void Scanner::Update()
             std::int32_t rssi = WiFi.RSSI(i);
 
             // WiFi.getNetworkInfo(...)
-            networks.emplace_back(ssid.c_str(), bssid, channel, rssi, enc, hidden, 0, 0);
+            networks.emplace_back(ssid, bssid, channel, rssi, enc, hidden, 0, 0);
         }
 
         Stop();
@@ -141,11 +144,15 @@ void Scanner::Update()
     else if(settings.mode == ScanMode::DEEP)
     {
         debuglnF("[Scanner] Updating Deep Scan");
-        auto currentMs = millis();
-        if((currentMs - startTime) >= scanTimeout)
+        if((elapsedTime - startTime) >= scanTimeout)
         {
             // delay(100);
             Stop();
+        }
+        if(hopInterval != 0 && (elapsedTime - lastHopTime) >= hopInterval)
+        {
+            wifi.ChangeChannel(sys::next_channel(settings.channels, wifi.CurrentNetworkChannel()));
+            lastHopTime = elapsedTime;
         }
     }
     else return;
@@ -161,19 +168,18 @@ void Scanner::Stop()
     }
     scanRunning = false;
     debuglnF("[Scanner] Stopped Scanning");
-}
 
-bool Scanner::Available() const
-{
-    return !SearchRunning() && (networks.size());
+    elapsedTime = 0;
 }
 
 void Scanner::packet_callback(byte* buf, uint16_t len) {
-    debuglnF("[Scanner] Packet Callback Triggered");
-    debugf("[Scanner] Packet length is %d\n", len);
-    if (instance_ != nullptr) {
-        instance_ptr()->handle_packet(buf, len);
-    }
+    // debuglnF("[Scanner] Packet Callback Triggered");
+    // debugf("[Scanner] Packet length is %d\n", len);
+    scanner.handle_packet(buf, len);
+
+    // if (instance_ != nullptr) {
+    //     instance_ptr()->handle_packet(buf, len);
+    // }
 }
 
 void Scanner::handle_packet(byte* buf, uint16_t len) {
@@ -200,7 +206,7 @@ void Scanner::handle_packet(byte* buf, uint16_t len) {
             parse_data_frame(frame, len, rssi);
             break;
     }
-    debuglnF("[Scanner] Packet Handled");
+    // debuglnF("[Scanner] Packet Handled");
 }
 
 void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi) {
@@ -212,7 +218,7 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi)
     memcpy(network.bssid, frame + 16, 6);
     
     // Extract channel from DS Parameter Set
-    network.channel = wifi.CurrentChannel();
+    network.channel = wifi.CurrentNetworkChannel();
     
     network.rssi = rssi;
     network.lastSeen = millis();
@@ -233,10 +239,12 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi)
                     // char ssid[33] = {0};
                     char ssid[33];
                     memcpy(ssid, tag + 2, tagLength);
+                    ssid[tagLength] = '\0';
                     network.SetSSID(ssid); // needs optimisations
                 } else {
                     network.hidden = true;
-                    // network.ssid = F("<Hidden>");
+                    // memcpy_P(network.ssid, HIDDEN_NETWORK_MARKER, strlen_P(HIDDEN_NETWORK_MARKER));
+                    network.ssid = FPSTR(HIDDEN_NETWORK_MARKER);
                 }
                 break;
                 
@@ -290,7 +298,7 @@ void Scanner::parse_data_frame(const uint8_t* frame, size_t length, int16_t rssi
     }
     
     station.rssi = rssi;
-    station.channel = wifi.CurrentChannel();
+    station.channel = wifi.CurrentNetworkChannel();
     station.lastSeen = millis();
     station.packets++;
     
@@ -314,7 +322,8 @@ bool Scanner::add_network_overwrite(const NetworkInfo& network) {
             existing.rssi = network.rssi;
             existing.lastSeen = network.lastSeen;
             if (!network.hidden && existing.hidden) {
-                existing.SetSSID(network.ssid);
+                // existing.SetSSID(network.ssid);
+                existing.ssid = network.ssid;
                 existing.hidden = false;
             }
             return false; // Updated existing
@@ -324,10 +333,9 @@ bool Scanner::add_network_overwrite(const NetworkInfo& network) {
     // Add new network if we have space
     if (networks.size() < MAX_NETWORKS) {
         networks.push_back(network);
+        debuglnF("[Scanner] Network Seen");
         return true; // Added new
     }
-
-    debuglnF("[Scanner] Network Added");
     
     return false;
 }
@@ -347,10 +355,9 @@ bool Scanner::add_station_overwrite(const StationInfo& station) {
     // Add new station if we have space
     if (stations.size() < MAX_STATIONS) {
         stations.push_back(station);
+        debuglnF("[Scanner] Station Seen");
         return true; // Added new
     }
-
-    debuglnF("[Scanner] Station Added");
     
     return false;
 }

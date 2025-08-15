@@ -4,16 +4,7 @@
    Source: github.com/spacehuhn/esp8266_deauther
  */
 
-extern "C" {
-    #include "user_interface.h"
-    typedef void (* freedom_outside_cb_t)(uint8 status);
-    int wifi_register_send_pkt_freedom_cb(freedom_outside_cb_t cb);
-    void wifi_unregister_send_pkt_freedom_cb(void);
-    int wifi_send_pkt_freedom(uint8* buf, int len, bool sys_seq);
-}
-
 #include "config.h"
-
 #include "utility.h"
 #include "debug.h"
 
@@ -156,57 +147,5 @@ namespace str {
         } else {
             return String(F("False"));
         }
-    }
-}
-
-namespace sys {
-    void channel(byte ch) {
-        if (wifi_get_channel() != ch) {
-            wifi_set_channel(ch);
-            debugF("[sys] Set channel ");
-            debugln(String(ch));
-        }
-    }
-
-    bool send(byte ch, byte* buf, std::uint16_t len) {
-        sys::channel(ch);
-        debuglnF("[sys] Send packet");
-        return wifi_send_pkt_freedom(buf, len, 0) == 0;
-    }
-
-    byte count_channels(ChannelMask channels) {
-        // if(channels & Channels::C_ALL) return MAX_CHANNEL;
-        // if(channels | Channels::C_NONE) return MIN_CHANNEL;
-
-        byte count = 0;
-        for (byte i = MIN_CHANNEL; i <= MAX_CHANNEL; ++i) {
-            count += ((channels >> i) & C_SET);
-        }
-
-        return count;
-    }
-
-    byte next_channel(ChannelMask channels) {
-        byte current = wifi_get_channel();
-
-        // If no channels in register
-        // Or the only channel that is, is already set
-
-        if (((channels) == C_NONE) ||
-            (((channels >> (current)) & C_SET) && ((channels & ~(ChannelMask{1}<< (current))) == C_NONE)))
-            return current;
-
-        do {
-            if (++current > MAX_CHANNEL) current = MIN_CHANNEL;
-        } while (!((channels >> current) & C_SET));
-
-        // debugF("[sys] Get next channel ");
-        // debugln(String(ch));
-
-        return current;
-    }
-
-    void channel_hop_next(ChannelMask channels) {
-        sys::channel(next_channel(channels));
     }
 }

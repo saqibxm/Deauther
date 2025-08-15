@@ -75,8 +75,8 @@ public:
 
     // void SwitchChannelHop(bool enable) { if(hopInterval == 0) enable = false; hopingChannels = enable; }
     //void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT) noexcept { if(interval < CHANNEL_HOP_INTERVAL_MIN) return; hopInterval = interval; }
-    void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT, ChannelMask cycle = C_ALL) noexcept;
-    void HandleChannelHop(unsigned long currentMs = millis()) noexcept;
+    // void ChannelHopInterval(std::uint16_t interval = CHANNEL_HOP_INTERVAL_DEFAULT, ChannelMask cycle = C_ALL) noexcept;
+    // void HandleChannelHop(unsigned long currentMs = millis()) noexcept;
 
     bool SendArbitraryPacket(const byte *buffer, std::uint16_t length);
     void SwitchPacketSendDelay(std::uint16_t delayMs = 0) {
@@ -86,30 +86,22 @@ public:
         }
     }
 
-    void ChangeChannel(byte ch) { sys::channel(ch); yield(); }
-    byte CurrentChannel() const { return wifi_get_channel(); }
-    void CycleNextChannel() { sys::channel_hop_next(channels); }
+    void ChangeChannel(byte ch) { sys::channel(ch);/* yield(); delay(100); */ }
+    byte CurrentChannel() const { return channel; }
+    byte CurrentNetworkChannel() const { return wifi_get_channel(); }
+    void CycleNextChannel(ChannelMask channels) { sys::channel_hop_next(channels); }
 
     ESP8266WiFiClass& LLManager();
 
-    static WiFiManager& instance() { return *instance_ptr(); }
-    static WiFiManager* instance_ptr() { if(!instance_) instance_ = new WiFiManager; return instance_; }
-
 private:
-    static WiFiManager* instance_;
     // ESP8266WiFiClass &wifi = WiFi; // wtf did I do
     // bool working;
-    bool promiscuousModeActive;
+    WManMode mode;
+    byte channel;
     bool paused;
 
-    WManMode mode;
+    bool promiscuousModeActive;
     PromiscuousCallback callback;
-
-    // bool hopingChannels; // only enabled when promiscuous so no need
-    std::uint16_t hopInterval;
-    std::uint16_t lastHopMs;
-    byte channel;
-    ChannelMask channels; // channel cycle list
 
     struct PacketOptionFields {
         // to control rate at which packets are sent
@@ -123,7 +115,8 @@ private:
     // std::uint16_t packetSendDelay; 
     // bool canSendPacket;
     // WiFiEventSoftAPModeStationConnected staConnectedCb;
-
 };
+
+extern WiFiManager wifi;
 
 // std::function<typename std::remove_pointer<PromiscuousCallback>::type> callback;
