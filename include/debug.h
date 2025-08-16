@@ -6,11 +6,6 @@
 
 #pragma once
 
-
-#define ENABLE_DEBUG
-#define DEBUG_BAUD 115200
-#define DEBUG_PORT Serial
-
 #include "config.h"
 
 #include <climits>   // LONG_MAX

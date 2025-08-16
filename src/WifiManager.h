@@ -48,18 +48,18 @@ public:
     // void Initialize();
 
     // void ConfigureAP(bool hidden, byte channel = 1/*uncommon_channel()*/, IPAddress ip = DEFAULT_IP);
-    void CreateAP(const String& ssid, const String& pass = String(), byte channel = 1, bool hidden = false, byte maxConnections = 4);
+    void InitializeNetwork(const String& ssid, const String& pass = String(), byte channel = 1, bool hidden = false, byte maxConnections = 4);
     void APConnectCallback(const EventCallback<WiFiEventSoftAPModeStationConnected> &cb) {
         WiFi.onSoftAPModeStationConnected(cb);
     }
-    void DisposeAP();
+    void DisposeNetwork();
 
-    void CreateST(const String &st_ssid, const String &st_pswd = String(), bool autoConnect = true);
+    void InitializeStation(const String &st_ssid, const String &st_pswd = String(), bool autoConnect = true);
     void SwitchSTConnection(bool connect = true);
     void STConnectCallback(const EventCallback<WiFiEventStationModeConnected> &cb) {
         WiFi.onStationModeConnected(cb);
     }
-    void DisposeST();
+    void DisposeStation();
 
     void Update(); // ?
     void Stop();
@@ -81,14 +81,13 @@ public:
     bool SendArbitraryPacket(const byte *buffer, std::uint16_t length);
     void SwitchPacketSendDelay(std::uint16_t delayMs = 0) {
         if(delayMs != 0) // if 0 then disables
-        {
             wifi_register_send_pkt_freedom_cb(enforce_packet_send_delay);
-        }
+        else wifi_unregister_send_pkt_freedom_cb();
     }
 
     void ChangeChannel(byte ch) { sys::channel(ch);/* yield(); delay(100); */ }
     byte CurrentChannel() const { return channel; }
-    byte CurrentNetworkChannel() const { return wifi_get_channel(); }
+    byte ActiveChannel() const { return sys::current_channel(); }
     void CycleNextChannel(ChannelMask channels) { sys::channel_hop_next(channels); }
 
     ESP8266WiFiClass& LLManager();

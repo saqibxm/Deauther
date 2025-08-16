@@ -1,9 +1,17 @@
 #include "Scanner.h"
+#include "FrameBuffer.h"
+#include "mac.h"
 
 #include "debug.h"
 
 Scanner scanner; // global definition
+// static FrameBuffer buffer; // buffer for holding packets, type is ring
 
+struct DebugScanData {
+    std::uint32_t packet_recv = 0, packets_proc = 0;
+} debug_data;
+
+/* SCANNER */
 Scanner::Scanner()
 {
     networks.reserve(10);
@@ -56,7 +64,13 @@ void Scanner::StartQuickScan()
 {
     // WiFiMode_t wifiMode = WiFi.getMode(); // for later restoration
 
-    WiFi.mode(WIFI_STA);
+    auto currentMode = wifi.CurrentMode();
+    if(currentMode == WManMode::WM_SERVER)
+        wifi.Mode(WManMode::WM_DUAL);
+    else
+        wifi.Mode(WManMode::WM_CLIENT);
+
+    // WiFi.mode(WIFI_STA);
     WiFi.disconnect();
 
     WiFi.scanNetworks(/* async */ true, /* scan hidden */ true); // initiate asynchronous scan
@@ -152,7 +166,7 @@ void Scanner::Update()
         }
         if(hopInterval != 0 && (elapsedTime - lastHopTime) >= hopInterval)
         {
-            wifi.ChangeChannel(sys::next_channel(settings.channels, wifi.CurrentNetworkChannel()));
+            wifi.ChangeChannel(sys::next_channel(settings.channels, wifi.ActiveChannel()));
             lastHopTime = elapsedTime;
         }
     }
@@ -171,24 +185,22 @@ void Scanner::Stop()
     debuglnF("[Scanner] Stopped Scanning");
 
     elapsedTime = 0;
+    // debugfP("[Debug] Total Packets Received: %d\r\nTotal Packets Processed: %d\r\n", debug_data.packet_recv, debug_data.packets_proc);
 }
 
 void Scanner::packet_callback(byte* buf, uint16_t len) {
     // debuglnF("[Scanner] Packet Callback Triggered");
     // debugf("[Scanner] Packet length is %d\n", len);
+    // buffer.Push(buf, len, scanner.elapsedTime);
     scanner.handle_packet(buf, len);
-
-    // if (instance_ != nullptr) {
-    //     instance_ptr()->handle_packet(buf, len);
-    // }
 }
 
-void Scanner::handle_packet(byte* buf, uint16_t len) {
+void Scanner::handle_packet(byte* buf, std::uint16_t len) {
     if (len < 24) return; // Minimum 802.11 frame size
 
     auto* pkt = reinterpret_cast<wifi_promiscuous_pkt_t*>(buf);
     byte* frame = pkt->payload;
-    int rssi = pkt->rx_ctrl.rssi;
+    signed rssi = pkt->rx_ctrl.rssi;
     
     byte frameType = frame[0];
     byte frameSubType = (frameType & 0xF0) >> 4;
@@ -196,7 +208,7 @@ void Scanner::handle_packet(byte* buf, uint16_t len) {
     
     switch (frameType) {
         case 0x00: // Management frames
-            if (frameSubType == 0x08) { // Beacon frame
+            if (frameSubType == 0x08 && (settings.target == ScanTarget::ACCESSPOINT || settings.target == ScanTarget::BOTH)) { // Beacon frame
                 parse_beacon_frame(frame, len, rssi);
             } else if (frameSubType == 0x04) { // Probe request
                 // parse_probe_frame(frame, len, rssi);
@@ -204,22 +216,24 @@ void Scanner::handle_packet(byte* buf, uint16_t len) {
             break;
             
         case 0x02: // Data frames
-            parse_data_frame(frame, len, rssi);
+            if(settings.target == ScanTarget::STATION || settings.target == ScanTarget::BOTH)
+                parse_data_frame(frame, len, rssi);
             break;
     }
-    // debuglnF("[Scanner] Packet Handled");
 }
 
-void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi) {
+void Scanner::parse_beacon_frame(const byte* frame, size_t length, std::int8_t rssi) {
     if (length < 36) return;
     
     NetworkInfo network;
     
     // Extract BSSID (AP MAC address)
+    // const byte *receiver = frame + 16, *sender = frame + 22;
+    // if(mac::broadcast(receiver) || mac::broadcast(sender) || mac::multicast(receiver) || mac::multicast(sender)) return;
     memcpy(network.bssid, frame + 16, 6);
     
     // Extract channel from DS Parameter Set
-    network.channel = wifi.CurrentNetworkChannel();
+    network.channel = wifi.ActiveChannel();
     
     network.rssi = rssi;
     network.lastSeen = millis();
@@ -241,7 +255,7 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi)
                     char ssid[33];
                     memcpy(ssid, tag + 2, tagLength);
                     ssid[tagLength] = '\0';
-                    network.SetSSID(ssid); // needs optimisations
+                    network.ssid = ssid;
                 } else {
                     network.hidden = true;
                     // memcpy_P(network.ssid, HIDDEN_NETWORK_MARKER, strlen_P(HIDDEN_NETWORK_MARKER));
@@ -262,7 +276,7 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi)
     
     // Determine encryption from capability info
     auto capability = *reinterpret_cast<const std::uint16_t*>(frame + 34);
-    network.encryption = (capability & 0x10) ? 1 : 0; // WEP bit
+    network.encryption = (capability & 0x10) ? AUTH_WEP : AUTH_OPEN; // WEP bit
     
     if (add_network_overwrite(network)) {
         if (networkFoundCb) {
@@ -272,7 +286,7 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, int16_t rssi)
     debuglnF("[Scanner] Parsed Beacon");
 }
 
-void Scanner::parse_data_frame(const uint8_t* frame, size_t length, int16_t rssi) {
+void Scanner::parse_data_frame(const uint8_t* frame, size_t length, std::int8_t rssi) {
     if (length < 24) return;
     
     StationInfo station;
@@ -299,7 +313,7 @@ void Scanner::parse_data_frame(const uint8_t* frame, size_t length, int16_t rssi
     }
     
     station.rssi = rssi;
-    station.channel = wifi.CurrentNetworkChannel();
+    station.channel = wifi.ActiveChannel();
     station.lastSeen = millis();
     station.packets++;
     
@@ -310,7 +324,7 @@ void Scanner::parse_data_frame(const uint8_t* frame, size_t length, int16_t rssi
     }
 }
 
-void Scanner::parse_probe_frame(const byte* frame, size_t length, int16_t rssi) {
+void Scanner::parse_probe_frame(const byte* frame, size_t length, std::int8_t rssi) {
     // Similar to parseDataFrame but for probe requests
     // Implementation would extract station MAC from probe requests
 }

@@ -28,17 +28,6 @@ namespace mac {
     }
 
     // ===== PUBLIC ===== //
-    bool multicast(const byte* mac) {
-        return (mac[0] & 0x01) == 1;
-    }
-
-    bool equals(const byte* macA, const byte* macB) {
-        for (uint8_t i = 0; i < 6; ++i) {
-            if (macA[i] != macB[i]) return false;
-        }
-
-        return true;
-    }
 
     bool valid(const char* str, unsigned int str_len, unsigned int len) {
         len = len - (len % 3);

@@ -37,72 +37,34 @@ extern "C" {
         wifi_set_channel(ch);
     }
 
+    inline byte current_channel() noexcept {
+        return wifi_get_channel();
+    }
+
     inline bool send(byte ch, byte* buf, std::uint16_t len) {
         sys::channel(ch);
         debugfP("[sys] Send packet, Length: %d\r\n", len);
         return wifi_send_pkt_freedom(buf, len, 0) == 0;
     }
 
-    inline byte count_channels(ChannelMask channels) noexcept {
+    inline constexpr byte count_channels(ChannelMask channels) noexcept {
         return __builtin_popcount(static_cast<unsigned int>(channels));
-        // if(channels & Channels::C_ALL) return MAX_CHANNEL;
-        // if(channels | Channels::C_NONE) return MIN_CHANNEL;
-
-        /*
-        byte count = 0;
-        for (byte i = MIN_CHANNEL; i <= MAX_CHANNEL; ++i) {
-            count += ((channels >> i) & C_SET);
-        }
-
-        return count;
-        */
     }
 
-    // byte next_channel(ChannelMask channels) noexcept {
-    //     return next_channel(channels, wifi_get_channel());
-    // }
-
-    inline byte next_channel(ChannelMask channels, byte current = wifi_get_channel()) noexcept
+    inline byte next_channel(ChannelMask channels, byte current = current_channel()) noexcept
     {
         byte next = __builtin_ffs(static_cast<int>(channels >> (current + 1))) + current;
 
         if(next == current && channels != C_NONE)
             next = __builtin_ctz(static_cast<unsigned int>(channels));
 
-        debugfP("[sys] Next Channel: %d\r\n", next);
-
         return next;
-
-        /*
-        if (((channels) == C_NONE) ||
-            (((channels >> (current)) & C_SET) && ((channels & ~(ChannelMask{1} << (current))) == C_NONE)))
-            return current;
-
-        do {
-            if (++current > MAX_CHANNEL) current = MIN_CHANNEL;
-        } while (!((channels >> current) & C_SET));
-
-        debugF("[sys] Next Channel "); debugln(String(current));
-        return current;
-        */
     }
 
     inline byte starting_channel(ChannelMask channels) noexcept
     {
         if(channels == C_NONE) return C_NONE;
-        byte next = __builtin_ctz(static_cast<unsigned int>(channels));
-        debugF("[sys] Starting Channel "); debug(String(next));
-        return next;
-        /*
-        for (byte i = MIN_CHANNEL; i <= MAX_CHANNEL; ++i) {
-            if((channels >> i) & C_SET)
-            {
-                debugF("[sys] Starting Channel "); debug(String(i));
-                return i;
-            }
-        }
-        return C_NONE;
-        */
+        return __builtin_ctz(static_cast<unsigned int>(channels));
     }
 
     inline void channel_hop_next(ChannelMask channels) noexcept {

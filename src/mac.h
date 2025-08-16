@@ -12,11 +12,24 @@
 #include "common.h"
 
 namespace mac {
+    using Unit = byte;
+    
     const static byte BROADCAST[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+    constexpr static byte LENGTH = 6U;
 
-    bool multicast(const byte* mac);
-    bool equals(const byte* macA, const byte* macB);
+    inline bool multicast(const byte* mac) {
+        return (mac[0] & 0x01) == 1;
+    }
 
-    bool valid(const char* str, unsigned int str_len, unsigned int len = 6);
-    void fromStr(const char* str, byte* mac, unsigned int len       = 6);
+    inline bool equals(const byte* macA, const byte* macB) {
+      // return __builtin_memcmp(macA, macB, LENGTH) != 0;
+      return memcmp(macA, macB, LENGTH) != 0;
+    }
+
+    inline bool broadcast(const byte *address) {
+      return equals(BROADCAST, address);
+    }
+
+    bool valid(const char* str, unsigned int str_len, unsigned int len = LENGTH);
+    void fromStr(const char* str, byte* mac, unsigned int len = LENGTH);
 }

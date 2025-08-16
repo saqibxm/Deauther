@@ -131,21 +131,20 @@ namespace str {
 
     String channels(ChannelMask reg) {
         String str;
+        ChannelMask current;
 
-        for (uint8_t i = MIN_CHANNEL; i <= MAX_CHANNEL; ++i) {
-            if ((reg >> (i)) & C_SET) {
-                str += String(i+1);
-                str += String(',');
-            }
+        while(reg != C_NONE)
+        {
+            current = __builtin_ctz(static_cast<unsigned int>(reg));
+            reg ^= (C_SET << current);
+            str += String(current);
+
+            if(reg != C_NONE) str += String(',');
         }
         return str;
     }
 
     String boolean(bool value) {
-        if (value) {
-            return String(F("True"));
-        } else {
-            return String(F("False"));
-        }
+        return value ? F("True") : F("False");
     }
 }

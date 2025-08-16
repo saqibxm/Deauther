@@ -7,6 +7,8 @@
 int16_t scanStatus = 0;
 
 unsigned long previousTime, currentTime;
+unsigned long startTime;
+ScanSettings sts;
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
@@ -16,31 +18,33 @@ void setup() {
     #endif
     debug_init();
 
-    WiFi.begin();
+    // wifi.InitializeNetwork("X", "deauther");
+    // wifi.APConnectCallback([] (const WiFiEventSoftAPModeStationConnected &evt) -> void {
+    //   Serial.printf_P("Device Connected, MAC: %s\r\n", str::mac(evt.mac).c_str());
+    // });
     delay(5000);
 
     Serial.println();
-    ScanSettings sts;
     sts.mode = ScanMode::DEEP;
-    sts.target = ScanTarget::BOTH;
+    sts.target = ScanTarget::ACCESSPOINT;
     sts.hopInterval = 5000;
     sts.channels = C_ASIA; // exclude channel 14
     sts.channels = C1 | C2 | C3 | C11;
     sts.timeout = (sts.hopInterval * sys::count_channels(sts.channels)); // give each channel 5 seconds;
 
     Serial.printf("Total Scan Channels : %d\n", sys::count_channels(sts.channels));
+    Serial.println(str::channels(sts.channels));
 
     scanner.StartScan(sts);
-    previousTime = millis();
-    Serial.println(F("Scan Started!"));
+    startTime = previousTime = millis();
 }
 
 void loop() {
   // wifi.Update();
+  currentTime = millis();
   if(scanner.SearchRunning())
   {
       scanner.Update();
-      currentTime = millis();
       if(currentTime - previousTime > 1000)
       {
         Serial.println("Scanning: " + String(scanner.ProgressPercentage()) + '%');
@@ -77,10 +81,15 @@ void loop() {
         Serial.println("Associated to: " + str::mac(sta.ap));
         Serial.println();
       }
-
-      Serial.printf("Free Heap Space %d\n", ESP.getFreeHeap());
-      Serial.println(F("Going into Deep Sleep, Reset!"));
-      ESP.deepSleep(0);
+    }
+    else
+    {
+      if(currentTime - startTime >= sts.timeout)
+      {
+        Serial.printf_P("Free Heap Space = %d\r\n", ESP.getFreeHeap());
+        Serial.println("Going to deep sleep, reset to restart");
+        ESP.deepSleep(0);
+      }
     }
 
     digitalWrite(LED_BUILTIN, HIGH);

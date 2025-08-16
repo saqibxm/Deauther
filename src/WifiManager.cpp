@@ -23,6 +23,8 @@ WiFiManager::WiFiManager()
     debuglnF("[WiFiManager] Initialized");
     ChangeChannel(channel);
     WiFi.begin();
+    WiFi.persistent(false);
+
     delay(200);
     Mode(WManMode::WM_IDLE);
 }
@@ -40,7 +42,7 @@ WiFiManager::~WiFiManager()
     settings.channel = channel;
 } */
 
-void WiFiManager::CreateAP(const String &ssid, const String &paswd, byte channel, bool hidden, byte maxConnections)
+void WiFiManager::InitializeNetwork(const String &ssid, const String &paswd, byte channel, bool hidden, byte maxConnections)
 {
     WiFi.disconnect();
     debuglnF("[WiFiManager] Disconnected");
@@ -52,7 +54,7 @@ void WiFiManager::CreateAP(const String &ssid, const String &paswd, byte channel
     this->channel = channel;
 }
 
-void WiFiManager::DisposeAP()
+void WiFiManager::DisposeNetwork()
 {
     auto current = mode;
     if(current != WManMode::WM_SERVER || current != WManMode::WM_DUAL)
@@ -72,7 +74,7 @@ void WiFiManager::DisposeAP()
     }
 }
 
-void WiFiManager::CreateST(const String &ssid, const String &paswd, bool autoConnect)
+void WiFiManager::InitializeStation(const String &ssid, const String &paswd, bool autoConnect)
 {
     WiFi.softAPdisconnect();
     debuglnF("[WiFiManager] Disconnected Stations from AP");
@@ -102,7 +104,7 @@ void WiFiManager::SwitchSTConnection(bool connect)
     }
 }
 
-void WiFiManager::DisposeST()
+void WiFiManager::DisposeStation()
 {
     WiFi.disconnect(true);
     Mode(WManMode::WM_IDLE);
@@ -125,21 +127,21 @@ void WiFiManager::Update()
 void WiFiManager::Pause()
 {
     // WiFi.mode(WIFI_SHUTDOWN);
-    debuglnF("[WiFiManager] Paused");
+    debuglnF("[WiFiManager] Pause Not Implemented");
 }
 
 void WiFiManager::Resume()
 {
     // if(WiFi.getMode() != WIFI_SHUTDOWN) return;
     // WiFi.mode(WIFI_RESUME);
-    debuglnF("[WiFiManager] Resumed");
+    debuglnF("[WiFiManager] Resume Not Implemented");
 }
 
 void WiFiManager::Stop()
 {
     StopPromiscuous();
-    DisposeAP();
-    DisposeST();
+    DisposeNetwork();
+    DisposeStation();
     WiFi.mode(WIFI_OFF);
     delay(500);
     debuglnF("[WiFiManager] Stopped");
@@ -188,9 +190,9 @@ void WiFiManager::Mode(WManMode m)
     mode = m;
     WiFi.mode(static_cast<WiFiMode_t>(mode));
 
-    debuglnF("[WiFiManager] Mode Changed");
-    String modeStr = (mode == WManMode::WM_CLIENT ? F("Client") : mode == WManMode::WM_SERVER ? F("Server") : F("OFF"));
-    debugln(modeStr);
+    char modeStr[7];
+    strcpy_P(modeStr, mode == WManMode::WM_CLIENT ? PSTR("Client") : mode == WManMode::WM_SERVER ? PSTR("Server") : PSTR("OFF"));
+    debugfP("[WiFiManager] Mode Changed: %s\r\n", modeStr);
 }
 
 /*
