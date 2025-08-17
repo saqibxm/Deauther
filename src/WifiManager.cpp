@@ -5,7 +5,7 @@
 // WiFiManager* WiFiManager::instance_ = nullptr;
 WiFiManager wifi;
 
-void enforce_packet_send_delay(uint8_t status)
+void WiFiManager::enforce_packet_send_delay(uint8_t status)
 {
     wifi.packetOptions.canSend = false;
     wifi.packetOptions.lastSentMs = millis();

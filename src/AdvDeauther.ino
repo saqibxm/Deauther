@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+// #include <GDBStub.h>
 
 #include "debug.h"
 #include "Scanner.h"
@@ -8,6 +9,7 @@ int16_t scanStatus = 0;
 
 unsigned long previousTime, currentTime;
 unsigned long startTime;
+bool completed = false;
 ScanSettings sts;
 
 void setup() {
@@ -18,11 +20,13 @@ void setup() {
     #endif
     debug_init();
 
-    // wifi.InitializeNetwork("X", "deauther");
-    // wifi.APConnectCallback([] (const WiFiEventSoftAPModeStationConnected &evt) -> void {
-    //   Serial.printf_P("Device Connected, MAC: %s\r\n", str::mac(evt.mac).c_str());
-    // });
-    delay(5000);
+    // gdbstub_init();
+
+    wifi.InitializeNetwork("X", "deauther");
+    wifi.APConnectCallback([] (const WiFiEventSoftAPModeStationConnected &evt) -> void {
+      Serial.printf_P("Device Connected, MAC: %s\r\n", str::mac(evt.mac).c_str());
+    });
+    delay(25000);
 
     Serial.println();
     sts.mode = ScanMode::DEEP;
@@ -51,7 +55,7 @@ void loop() {
         previousTime = currentTime;
       }
   }
-  else if(scanner.Available())
+  else if(scanner.Available() && !completed)
     {
       auto &list = scanner.FoundNetworks();
       Serial.printf_P(PSTR("Scan Completed! Found %d Networks\n"), list.size());
@@ -81,6 +85,8 @@ void loop() {
         Serial.println("Associated to: " + str::mac(sta.ap));
         Serial.println();
       }
+
+      completed = true;
     }
     else
     {

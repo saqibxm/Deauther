@@ -31,11 +31,9 @@ struct WiFiSTSettings
     String pswd;
 };
 
-void enforce_packet_send_delay(uint8_t);
-
 class WiFiManager // : public Singleton<WiFiManager>
 {
-    friend void enforce_packet_send_delay(uint8_t);
+    // friend void enforce_packet_send_delay(uint8_t);
 public:
     using PromiscuousCallback = wifi_promiscuous_cb_t;
     
@@ -50,14 +48,14 @@ public:
     // void ConfigureAP(bool hidden, byte channel = 1/*uncommon_channel()*/, IPAddress ip = DEFAULT_IP);
     void InitializeNetwork(const String& ssid, const String& pass = String(), byte channel = 1, bool hidden = false, byte maxConnections = 4);
     void APConnectCallback(const EventCallback<WiFiEventSoftAPModeStationConnected> &cb) {
-        WiFi.onSoftAPModeStationConnected(cb);
+        evtClientConnected = WiFi.onSoftAPModeStationConnected(cb);
     }
     void DisposeNetwork();
 
     void InitializeStation(const String &st_ssid, const String &st_pswd = String(), bool autoConnect = true);
     void SwitchSTConnection(bool connect = true);
     void STConnectCallback(const EventCallback<WiFiEventStationModeConnected> &cb) {
-        WiFi.onStationModeConnected(cb);
+        evtConnectedToAP = WiFi.onStationModeConnected(cb);
     }
     void DisposeStation();
 
@@ -109,11 +107,16 @@ private:
         std::uint64_t lastSentMs : 48;
     } packetOptions;
 
-    // static freedom_outside_cb_t sPacketSentCb;
+    WiFiEventHandler evtClientConnected;
+    WiFiEventHandler evtConnectedToAP;
 
-    // std::uint16_t packetSendDelay; 
-    // bool canSendPacket;
-    // WiFiEventSoftAPModeStationConnected staConnectedCb;
+    // static freedom_outside_cb_t sPacketSentCb;
+    // union {
+    //     WiFiEventHandler evtClientConnected;
+    //     WiFiEventHandler evtConnectedToAP;
+    // } eventHandlers;
+private:
+    static void enforce_packet_send_delay(uint8_t);
 };
 
 extern WiFiManager wifi;
