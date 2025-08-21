@@ -8,9 +8,11 @@
 #include "WifiManager.h"
 #include "Singleton.h"
 #include "AccessPoint.h"
+#include "packet.h"
 
 #include "common.h"
 #include "config.h"
+
 // #include <ArduinoJson.h>
 
 enum class ScanMode : byte
@@ -119,8 +121,8 @@ private:
 private:
     static void packet_callback(byte* buf, std::uint16_t len);
     void handle_packet(byte* buf, std::uint16_t len);
-    void parse_beacon_frame(const byte* frame, size_t length, std::int8_t rssi);
-    void parse_data_frame(const byte* frame, size_t length, std::int8_t rssi);
+    void parse_beacon_frame(const byte* frame, std::uint16_t length, std::int8_t rssi);
+    void parse_data_frame(const byte* frame, std::uint16_t length, std::int8_t rssi);
     void parse_probe_frame(const byte* frame, size_t length, std::int8_t rssi);
     bool add_network_overwrite(const NetworkInfo& network);
     bool add_station_overwrite(const StationInfo& station);

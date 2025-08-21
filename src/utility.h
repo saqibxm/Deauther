@@ -41,10 +41,14 @@ extern "C" {
         return wifi_get_channel();
     }
 
-    inline bool send(byte ch, byte* buf, std::uint16_t len) {
+    inline bool send_to(byte ch, const byte* buf, std::uint16_t len) {
         sys::channel(ch);
         debugfP("[sys] Send packet, Length: %d\r\n", len);
-        return wifi_send_pkt_freedom(buf, len, 0) == 0;
+        return wifi_send_pkt_freedom(const_cast<byte*>(buf), len, 0) == 0; // watch out for UB
+    }
+
+    inline bool send(const byte* buf, std::uint16_t len) {
+        return wifi_send_pkt_freedom(const_cast<byte*>(buf), len, 0) == 0;
     }
 
     inline constexpr byte count_channels(ChannelMask channels) noexcept {

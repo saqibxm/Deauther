@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <cstdint>
 
+#include "mac.h"
+
 struct NetworkInfo {
     // char *ssid = nullptr;
     String ssid;

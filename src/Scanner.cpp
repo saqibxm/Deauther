@@ -196,32 +196,128 @@ void Scanner::packet_callback(byte* buf, uint16_t len) {
 }
 
 void Scanner::handle_packet(byte* buf, std::uint16_t len) {
-    if (len < 24) return; // Minimum 802.11 frame size
+    if (len < 24) return; // Minimum 802.11 frame size, if not drop!
 
     auto* pkt = reinterpret_cast<wifi_promiscuous_pkt_t*>(buf);
+    auto* frame = pkt->payload;
+    auto* frame_ctrl = reinterpret_cast<wifi_header_frame_control_t*>(pkt->payload);
+    signed rssi = pkt->rx_ctrl.rssi;
+    // unsigned channel = pkt->rx_ctrl.channel;
+    
+    switch (frame_ctrl->type) {
+        case wifi_promiscuous_pkt_type_t::WIFI_PKT_MGMT: // is a management frame
+            if (frame_ctrl->subtype == wifi_mgmt_subtypes_t::BEACON
+                && (settings.target == ScanTarget::ACCESSPOINT || settings.target == ScanTarget::BOTH))
+            { // Beacon frame
+                parse_beacon_frame(frame, len, rssi);
+            }
+            else if (frame_ctrl->subtype == wifi_mgmt_subtypes_t::PROBE_REQ)
+            {
+                // parse_probe_frame(frame, len, rssi);
+            }
+            break;
+            
+        case wifi_promiscuous_pkt_type_t::WIFI_PKT_DATA: // Data frames
+            if(settings.target == ScanTarget::STATION || settings.target == ScanTarget::BOTH)
+                parse_data_frame(frame, len, rssi);
+            break;
+        
+        default:
+            /* UNSUPPORTED FRAME TYPE */
+            break;
+    }
+}
+
+/*
+void Scanner::handle_packet(byte* buf, std::uint16_t len) {
+    if (len < 24) return; // Minimum 802.11 frame size, if not drop!
+
+    auto* pkt = reinterpret_cast<wifi_promiscuous_pkt_t*>(buf);
+
     byte* frame = pkt->payload;
     signed rssi = pkt->rx_ctrl.rssi;
+    // unsigned channel = pkt->rx_ctrl.channel;
     
     byte frameType = frame[0];
     byte frameSubType = (frameType & 0xF0) >> 4;
     frameType = (frameType & 0x0C) >> 2;
     
     switch (frameType) {
-        case 0x00: // Management frames
-            if (frameSubType == 0x08 && (settings.target == ScanTarget::ACCESSPOINT || settings.target == ScanTarget::BOTH)) { // Beacon frame
+        case wifi_promiscuous_pkt_type_t::WIFI_PKT_MGMT: // is a management frame
+            if (frameSubType == wifi_mgmt_subtypes_t::BEACON
+                && (settings.target == ScanTarget::ACCESSPOINT || settings.target == ScanTarget::BOTH))
+            { // Beacon frame
                 parse_beacon_frame(frame, len, rssi);
-            } else if (frameSubType == 0x04) { // Probe request
+            } else if (frameSubType == 0x04) {
                 // parse_probe_frame(frame, len, rssi);
             }
             break;
             
-        case 0x02: // Data frames
+        case wifi_promiscuous_pkt_type_t::WIFI_PKT_DATA: // Data frames
             if(settings.target == ScanTarget::STATION || settings.target == ScanTarget::BOTH)
                 parse_data_frame(frame, len, rssi);
             break;
+        
+        default:
+            break;
     }
+}*/
+
+void Scanner::parse_beacon_frame(const byte* buf, std::uint16_t length, std::int8_t rssi)
+{
+    struct BeaconFrame
+    {
+        wifi_ieee80211_mac_hdr_t header;
+        wifi_mgmt_beacon_t footer;
+    } ATTR_PACKED;
+
+    NetworkInfo network;
+    auto *beacon = reinterpret_cast<const BeaconFrame*>(buf);
+    auto *header = &beacon->header;
+    auto *frame = &beacon->footer; // automatic offset by sizeof wifi_iee80211 header
+    // auto *header = reinterpret_cast<const wifi_ieee80211_mac_hdr_t*>(buf);
+    // auto *frame = reinterpret_cast<const wifi_mgmt_beacon_t*>(buf + sizeof(wifi_ieee80211_mac_hdr_t));
+
+    memcpy(network.bssid, header->addr2, 6);
+    network.channel = wifi.ActiveChannel(); // do not parse data for further tags
+
+    network.rssi = rssi;
+    network.lastSeen = this->elapsedTime; // misleading name but elapsedTime is actually current time (TODO: Fix)
+    
+    sizeof(int);
+    if(frame->tag_length > 0);
+        
+    switch (frame->tag_number) {
+    case 0: // SSID
+        if (frame->tag_length > 0 && frame->tag_length <= 32) {
+            char ssid[33];
+            memcpy(ssid, frame->tag_data, frame->tag_length);
+            ssid[frame->tag_length] = '\0';
+            network.ssid = ssid;
+        } else {
+            network.hidden = true;
+            // memcpy_P(network.ssid, HIDDEN_NETWORK_MARKER, strlen_P(HIDDEN_NETWORK_MARKER));
+            network.ssid = FPSTR(HIDDEN_NETWORK_MARKER);
+        }
+        break;
+        
+    case 3: // DS Parameter set (channel)
+        if (frame->tag_length == 1) {
+            network.channel = frame->tag_data[0];
+        }
+        break;
+    }
+    network.encryption = (frame->capability & 0x10) ? AUTH_WEP : AUTH_OPEN; // WEP bit
+    
+    if (add_network_overwrite(network)) {
+        if (networkFoundCb) {
+            networkFoundCb(network);
+        }
+    }
+    debuglnF("[Scanner] Parsed Beacon");
 }
 
+/*
 void Scanner::parse_beacon_frame(const byte* frame, size_t length, std::int8_t rssi) {
     if (length < 36) return;
     
@@ -239,7 +335,7 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, std::int8_t r
     network.lastSeen = millis();
     
     // Parse tagged parameters for SSID and encryption
-    const byte* tag = frame + 36; // Skip fixed parameters
+    const byte* tag = frame + 36; // jump fixed parameters
     size_t remaining = length - 36;
     
     while (remaining >= 2) {
@@ -285,14 +381,53 @@ void Scanner::parse_beacon_frame(const byte* frame, size_t length, std::int8_t r
     }
     debuglnF("[Scanner] Parsed Beacon");
 }
+*/
 
+void Scanner::parse_data_frame(const uint8_t* buf, std::uint16_t length, std::int8_t rssi) {
+    if (length < 24) return;
+    
+    StationInfo station;
+
+    auto *frame = reinterpret_cast<const wifi_ieee80211_mac_hdr_t*>(buf);
+    
+    // Extract MAC addresses based on DS bits
+    if (!frame->frame_ctrl.to_ds && !frame->frame_ctrl.from_ds) {
+        // IBSS
+        memcpy(station.mac, frame->addr2, 6);
+        memcpy(station.ap, frame->addr1, 6);
+    } else if (!frame->frame_ctrl.to_ds && frame->frame_ctrl.from_ds) {
+        // From AP to Station
+        memcpy(station.mac, frame->addr1, 6);
+        memcpy(station.ap, frame->addr2, 6);
+    } else if (frame->frame_ctrl.to_ds && !frame->frame_ctrl.from_ds) {
+        // From Station to AP
+        memcpy(station.mac, frame->addr2, 6);
+        memcpy(station.ap, frame->addr1, 6);
+    } else {
+        // WDS - skip for now, not handled
+        return;
+    }
+    
+    station.rssi = rssi;
+    station.channel = wifi.ActiveChannel();
+    station.lastSeen = elapsedTime;
+    station.packets++;
+    
+    if (add_station_overwrite(station)) {
+        if (stationFoundCb) {
+            stationFoundCb(station);
+        }
+    }
+}
+
+/*
 void Scanner::parse_data_frame(const uint8_t* frame, size_t length, std::int8_t rssi) {
     if (length < 24) return;
     
     StationInfo station;
     
-    uint8_t toDS = (frame[1] & 0x01);
-    uint8_t fromDS = (frame[1] & 0x02) >> 1;
+    byte toDS = (frame[1] & 0x01);
+    byte fromDS = (frame[1] & 0x02) >> 1;
     
     // Extract MAC addresses based on DS bits
     if (!toDS && !fromDS) {
@@ -322,7 +457,7 @@ void Scanner::parse_data_frame(const uint8_t* frame, size_t length, std::int8_t 
             stationFoundCb(station);
         }
     }
-}
+}*/
 
 void Scanner::parse_probe_frame(const byte* frame, size_t length, std::int8_t rssi) {
     // Similar to parseDataFrame but for probe requests

@@ -1,15 +1,17 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-// #include <GDBStub.h>
+#include <GDBStub.h>
 
 #include "debug.h"
 #include "Scanner.h"
+#include "WifiManager.h"
+#include "Attacker.h"
 
 int16_t scanStatus = 0;
 
 unsigned long previousTime, currentTime;
 unsigned long startTime;
-bool completed = false;
+bool printed = false;
 ScanSettings sts;
 
 void setup() {
@@ -22,16 +24,16 @@ void setup() {
 
     // gdbstub_init();
 
-    wifi.InitializeNetwork("X", "deauther");
-    wifi.APConnectCallback([] (const WiFiEventSoftAPModeStationConnected &evt) -> void {
-      Serial.printf_P("Device Connected, MAC: %s\r\n", str::mac(evt.mac).c_str());
-    });
-    delay(25000);
+    // wifi.InitializeNetwork("X", "deauther");
+    // wifi.APConnectCallback([] (const WiFiEventSoftAPModeStationConnected &evt) -> void {
+    //   Serial.printf_P("Device Connected, MAC: %s\r\n", str::mac(evt.mac).c_str());
+    // });
+    delay(5000);
 
     Serial.println();
     sts.mode = ScanMode::DEEP;
     sts.target = ScanTarget::ACCESSPOINT;
-    sts.hopInterval = 5000;
+    sts.hopInterval = 1000;
     sts.channels = C_ASIA; // exclude channel 14
     sts.channels = C1 | C2 | C3 | C11;
     sts.timeout = (sts.hopInterval * sys::count_channels(sts.channels)); // give each channel 5 seconds;
@@ -46,6 +48,7 @@ void setup() {
 void loop() {
   // wifi.Update();
   currentTime = millis();
+
   if(scanner.SearchRunning())
   {
       scanner.Update();
@@ -55,7 +58,7 @@ void loop() {
         previousTime = currentTime;
       }
   }
-  else if(scanner.Available() && !completed)
+  else if(!printed && scanner.Available())
     {
       auto &list = scanner.FoundNetworks();
       Serial.printf_P(PSTR("Scan Completed! Found %d Networks\n"), list.size());
@@ -86,11 +89,18 @@ void loop() {
         Serial.println();
       }
 
-      completed = true;
+      printed = true;
+
+      AttackSettings settings;
+      settings.timeout = 15000;
+      attacker.Start(settings);
     }
     else
     {
-      if(currentTime - startTime >= sts.timeout)
+      if(attacker.Running())
+        attacker.Update();
+      else
+      // if(currentTime - startTime >= sts.timeout)
       {
         Serial.printf_P("Free Heap Space = %d\r\n", ESP.getFreeHeap());
         Serial.println("Going to deep sleep, reset to restart");

@@ -32,3 +32,7 @@
 #define QUICK_SCAN 0
 #define DEFAULT_SCAN_TIMEOUT 15000
 #define MAX_SCAN_TIMEOUT (5 * 1000 * 60)
+
+
+#define ATTR_PACKED __attribute__((packed))
+#define ATTR_INLINE __attribute__((always_inline))

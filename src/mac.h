@@ -16,6 +16,8 @@ namespace mac {
     
     const static byte BROADCAST[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
     constexpr static byte LENGTH = 6U;
+    
+    using Array = byte[mac::LENGTH];
 
     inline bool multicast(const byte* mac) {
         return (mac[0] & 0x01) == 1;
